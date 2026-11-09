@@ -1,0 +1,10 @@
+# 离线主链路必需依赖（无网络、无 AMAP_KEY 也要能跑通）
+# 安装：pip install -r requirements-core.txt
+#
+# 说明：AGENTS.md 把 pandas 列为数据读取首选，但本项目为逐行容错
+# （坏行跳过、编码回退 utf-8/utf-8-sig/gbk、精确到行的 data_issues）
+# 使用标准库 csv 实现，故 pandas 放在 requirements-optional.txt。
+networkx>=2.8,<4
+
+# 测试框架（开发/CI 需要，运行主链路本身不需要）
+pytest>=7.0

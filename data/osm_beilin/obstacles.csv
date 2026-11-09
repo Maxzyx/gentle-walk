@@ -1,0 +1,4 @@
+id,name,type,lon,lat,coord_system,severity,step_count,slope_pct,length_m,source,confidence,notes
+obs_001,南门里台阶（连接东西向巷道）,stairs,108.9447,34.2610,wgs84,2,8,,6,样例合成,low,虚构演示数据；台阶 8 级、无坡道
+obs_002,西羊市北段陡坡,slope,108.9470,34.2605,wgs84,3,,9.5,20,样例合成,low,虚构演示数据；坡度约 9.5%，雨后湿滑
+obs_003,钟楼东人行横道,crossing,108.9462,34.2595,wgs84,2,,,12,样例合成,low,虚构演示数据；无信号灯，车流量中等

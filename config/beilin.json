@@ -1,0 +1,63 @@
+{
+  "_comment": "碑林区专用配置：路网来自 OpenStreetMap（ODbL 1.0），POI/障碍/休息点仍是人工编写的样例数据。用法：python -m src.cli --config config/beilin.json",
+  "area": {
+    "name": "西安碑林区（OSM 路网）",
+    "_bbox_note": "[lon_min, lat_min, lon_max, lat_max]，取自 OSM relation 3226088（碑林区）bounds",
+    "bbox": [108.9049687, 34.2318173, 109.0015821, 34.2700743],
+    "_center_note": "bbox 中心点，仅作默认起点示例",
+    "center": [108.9533, 34.2509],
+    "margin_deg": 0.02,
+    "default_origin_name": "碑林区示例起点-钟楼附近"
+  },
+  "runtime": {
+    "offline_demo": true,
+    "data_dir": "data/osm_beilin",
+    "cache_dir": "cache/amap",
+    "cache_enabled": true,
+    "http_timeout_s": 8.0,
+    "max_retries": 5,
+    "retry_backoff_base_s": 1.0,
+    "keyring_service": "laochengqu-amap"
+  },
+  "scoring": {
+    "senior_speed_mps": 0.9,
+    "_senior_speed_note": "老人慢速步速默认 0.9 m/s，属假设/待验证",
+    "stairs_base": 0.5,
+    "stairs_per_step": 0.9,
+    "stairs_default_when_missing": 8.0,
+    "slope_base": 3.0,
+    "slope_per_pct": 0.6,
+    "slope_steep_pct": 8.0,
+    "slope_steep_multiplier": 1.5,
+    "slope_default_when_missing": 6.0,
+    "crossing_cost": 2.5,
+    "_obstacle_by_severity_note": "下标 0 对应 severity=1，依次 2、3",
+    "obstacle_by_severity": [2.0, 4.0, 8.0],
+    "fatigue_threshold_m": 200.0,
+    "fatigue_cost": 3.0,
+    "rest_buffer_m": 200.0,
+    "rest_reward_per_point": 1.0,
+    "rest_reward_cap": 5.0,
+    "ramp_bonus": 1.5,
+    "no_ramp_stairs_penalty": 2.0
+  },
+  "risk": {
+    "low_max_stairs": 0,
+    "medium_max_stairs": 10,
+    "high_min_stairs": 11,
+    "low_max_slope_pct": 5.0,
+    "steep_slope_pct": 8.0,
+    "low_max_crossings": 1,
+    "medium_max_crossings": 3
+  },
+  "quadtree": {
+    "poi_threshold": 180,
+    "min_span_deg": 0.005,
+    "max_depth": 6,
+    "page_size": 25,
+    "keywords": {
+      "greengrocer": ["菜市场", "蔬菜店", "生鲜超市", "便民菜店", "瓜果蔬菜"],
+      "clinic": ["社区卫生服务站", "卫生服务中心", "社区医院"]
+    }
+  }
+}

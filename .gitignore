@@ -1,0 +1,66 @@
+# Python 产物
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 测试与缓存
+.pytest_cache/
+.pytest-tmp/
+.coverage
+htmlcov/
+cache/
+
+# 密钥与本地配置：绝不能提交
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# 编辑器与系统
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# 本地环境与其他凭据；只保留可公开的示例模板
+.env.*
+!.env.example
+!.env.*.example
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.kdbx
+credentials.json
+secrets.json
+
+# 本地代理配置、对话记录与会话重建说明
+.codex/
+.dsh/
+.claude/
+.codex-security/
+RECONSTRUCTION_STATUS.md
+sessions/
+conversations/
+transcripts/
+chat_history/
+session*.jsonl
+session*.jsonl.*
+session*.json
+session*.json.zstd
+session*.json.gz
+
+# 生成的扫描结果与过期 Word 输出，发布前通过源文件重新生成
+*.sarif
+/scan-manifest.json
+/findings.json
+/coverage.json
+/docs/*.docx

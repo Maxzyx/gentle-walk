@@ -1,0 +1,17 @@
+id,name,category,lon,lat,coord_system,address,open_hours,has_ramp,source,confidence,updated_at,notes
+amap_B001D06A42,碑林区南院门社区卫生服务中心,clinic,108.9375179,34.2571453,wgs84,南院门13号,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0FFFA8VI0,碑林区柏树林社区卫生服务中心,clinic,108.9571219,34.2582270,wgs84,东羊市38号(大差市地铁站C东南口步行330米),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0JD7UF3EL,碑林区长乐坊社区卫生服务中心(西院),clinic,108.9708060,34.2628959,wgs84,炮房街51号(长乐门地铁站D口步行240米),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0HUFZX22Q,碑林区东关南街卫生服务中心,clinic,108.9720343,34.2603715,wgs84,东关正街66号(长乐门地铁站C2口旁),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0HD1Z4QBE,碑林区太乙路第二社区卫生服务中心,clinic,108.9673243,34.2455173,wgs84,太乙路132号(太乙路地铁站A口步行340米),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B001D0WNJB,碑林区长安路社区卫生服务中心,clinic,108.9384011,34.2489269,wgs84,振兴路36号,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0IGBLPNC1,文艺路社区卫生服务中心,clinic,108.9577162,34.2395467,wgs84,测绘路与雁塔北路交叉口西约120米,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0FFKF57MS,碑林区长乐坊社区卫生服务中心,clinic,108.9903629,34.2627513,wgs84,金花北路8号(长乐公园地铁站A西北口旁),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B001D0WMAI,友谊社区卫生服务中心,clinic,108.9219001,34.2438581,wgs84,友谊西路277号(边家村地铁站D口步行300米),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0FFME5TTY,碑林区太乙路社区卫生服务中心,clinic,108.9655084,34.2343505,wgs84,南二环东段319号(通用环球中铁西安医院院内),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0FFJ3WEBQ,碑林区张家村交通社区卫生服务中心,clinic,108.9157669,34.2474128,wgs84,张家村街道大学南路276号,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B001D09KHV,长安路三五三八社区卫生服务站,clinic,108.9443195,34.2378427,wgs84,草场坡,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B001D06YBZ,太乙路交大社区卫生服务站,clinic,108.9883944,34.2507000,wgs84,交大二村西门旁(咸宁路地铁站F口步行400米),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0FFL1TODF,张家村友谊社区卫生服务中心-预防接种门诊,clinic,108.9224171,34.2438646,wgs84,友谊西路277号友谊社区卫生服务中心,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0FFHK2EZV,张家村军工社区卫生服务站,clinic,108.9241704,34.2334944,wgs84,二环南路西段出口与兴化巷交叉口东100米,,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准
+amap_B0L0LCACVW,互助路社区卫生服务站,clinic,108.9857419,34.2614408,wgs84,互助路49号(长乐公园地铁站B1西南口步行420米),,,高德,medium,2026-11-05,高德 POI 检索（city=610103 区级限定，method=coordTransform），坐标已由 GCJ02 转 WGS84；开放时间与入口坡道未知，以现场为准

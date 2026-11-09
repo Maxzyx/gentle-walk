@@ -1,0 +1,3 @@
+id,name,type,lon,lat,coord_system,seats,source,confidence,notes
+rest_001,社区广场长椅,bench,108.9455,34.2600,wgs84,4,样例合成,low,虚构演示数据；有靠背，位于树荫下
+rest_002,钟楼东树荫,shade,108.9470,34.2608,wgs84,,样例合成,low,虚构演示数据；无座位，可短暂停留

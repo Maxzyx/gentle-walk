@@ -1,0 +1,25 @@
+# 可选依赖：缺失时主链路照常工作，只损失对应增强能力
+# 安装：pip install -r requirements-optional.txt
+# 任一安装失败都不影响离线演示；详见 README「降级矩阵」。
+
+# --- 坐标转换（缺失 → GCJ02/BD09 数据进入「待复核」，不猜坐标） ---
+# pyproj 用于 WGS84 ↔ 投影坐标系（米制）；安装失败常见于缺少 PROJ，可改用 conda-forge
+pyproj>=3.4
+# coordTransform：纯 Python 坐标纠偏后端，用于 GCJ02/BD09 → WGS84
+# 注意：PyPI 包名是 coordtransform，导入名是 coordTransform（首字母大写）
+coordtransform>=0.2
+# geotransform：可选坐标转换后端，不作为默认安装项；
+# 若环境提供兼容的 coordinate 接口，coord_transform 会优先探测。
+# geotransform>=0.1
+
+# --- 网页界面（缺失 → 只用 CLI，文字输出完整） ---
+streamlit>=1.28
+streamlit-folium>=0.15
+folium>=0.14
+
+# --- Key 便捷设置（缺失 → --set-key 改为写入 .env） ---
+keyring>=23.0
+python-dotenv>=1.0
+
+# --- 数据处理（当前主链路用标准库 csv，见 requirements-core.txt 说明） ---
+pandas>=1.5
