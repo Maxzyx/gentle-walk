@@ -147,6 +147,91 @@ def _edge_costs(walk_graph: WalkGraph, config: AppConfig) -> Dict[Tuple[str, str
     return costs
 
 
+@dataclass
+class PlanningContext:
+    """单次规划共享的计算结果；数据或起点改变后必须新建，避免陈旧缓存。"""
+
+    walk_graph: WalkGraph
+    origin: Tuple[float, float]
+    config: AppConfig
+    origin_node: Optional[str] = field(init=False)
+    origin_connector_m: float = field(init=False, default=0.0)
+    _costs: Optional[Dict[Tuple[str, str], float]] = field(default=None, init=False, repr=False)
+    _distances: Optional[Dict[str, float]] = field(default=None, init=False, repr=False)
+    _snaps: Dict[Tuple[float, float], Optional[str]] = field(default_factory=dict, init=False, repr=False)
+    _paths: Dict[str, Tuple[Tuple[str, ...], ...]] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        lon, lat = self.origin
+        if not (math.isfinite(lon) and math.isfinite(lat) and -180 <= lon <= 180 and -90 <= lat <= 90):
+            raise ValueError("起点不是合法有限经纬度。下一步：检查经纬度顺序和范围。")
+        self.origin_node = nearest_node(self.walk_graph, self.origin, max_distance_m=SNAP_MAX_M)
+        self._snaps[self.origin] = self.origin_node
+        if self.origin_node is not None:
+            self.origin_connector_m = haversine_m(*self.origin, *self.walk_graph.point_of(self.origin_node))
+
+    def snap(self, point: Tuple[float, float]) -> Optional[str]:
+        """同一坐标仅执行一次近邻查找，不假定不同 POI 的入口相同。"""
+        if point not in self._snaps:
+            self._snaps[point] = nearest_node(self.walk_graph, point, max_distance_m=SNAP_MAX_M)
+        return self._snaps[point]
+
+    def weight(self, u: str, v: str, data: Dict[str, object]) -> float:
+        """边权仅在本次请求内计算一次，仍由 networkx 执行寻路。"""
+        if self._costs is None:
+            self._costs = _edge_costs(self.walk_graph, self.config)
+        return self._costs.get(edge_key(u, v), 0.0)
+
+    def cost_lower_bound(self, destination: Poi) -> float:
+        """保守成本下界，只排除不可能胜出的目的地，保留原来的三路径评估。
+
+        最短边权和减去最大休息奖励及该 POI 的坡道奖励，加上接驳成本。
+        疲劳和其他附加项非负；预留 0.002 处理两次三位小数舍入。
+        此规则依赖配置加载器对非负权重的校验，不用于预测现场风险。
+        """
+        node = self.snap(destination.point)
+        if self.origin_node is None or node is None:
+            return math.inf
+        if node == self.origin_node:
+            return max(0.0, time_cost(haversine_m(*self.origin, *destination.point), self.config.scoring) - 0.002)
+        if self._distances is None:
+            self._distances = nx.single_source_dijkstra_path_length(
+                self.walk_graph.graph, self.origin_node, weight=self.weight
+            )
+        if node not in self._distances:
+            return math.inf
+        scoring = self.config.scoring
+        reward = scoring.rest_reward_cap + (scoring.ramp_bonus if destination.has_ramp is True else 0.0)
+        connector = self.origin_connector_m + haversine_m(*self.walk_graph.point_of(node), *destination.point)
+        estimate = max(0.0, self._distances[node] - reward) + time_cost(connector, scoring)
+        return max(0.0, estimate - 0.002)
+
+    def candidate_paths(self, node: str) -> Tuple[Tuple[str, ...], ...]:
+        """仅复用节点路径；入口奖励、接驳、统计和风险仍按每个 POI 评估。"""
+        if node not in self._paths:
+            try:
+                primary = nx.shortest_path(
+                    self.walk_graph.graph, source=self.origin_node, target=node, weight=self.weight
+                )
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                self._paths[node] = ()
+            else:
+                paths = [tuple(primary)]
+                try:
+                    for path in nx.shortest_simple_paths(
+                        self.walk_graph.graph, self.origin_node, node, weight=self.weight
+                    ):
+                        candidate = tuple(path)
+                        if candidate not in paths:
+                            paths.append(candidate)
+                        if len(paths) >= MAX_CANDIDATES:
+                            break
+                except (nx.NetworkXNoPath, nx.NodeNotFound):
+                    pass
+                self._paths[node] = tuple(paths)
+        return self._paths[node]
+
+
 def stairs_text(stats: RouteStats) -> str:
     """数量未知不能显示为没有台阶。"""
     if stats.stairs_unknown_segments:
@@ -260,6 +345,7 @@ def plan_routes(
     origin: Tuple[float, float],
     destination: Poi,
     config: AppConfig,
+    context: Optional[PlanningContext] = None,
 ) -> PlanOutcome:
     """为单个目的地规划主路线与备选路线。
 
@@ -277,8 +363,15 @@ def plan_routes(
         )
         return outcome
 
-    origin_node = nearest_node(walk_graph, origin, max_distance_m=SNAP_MAX_M)
-    dest_node = nearest_node(walk_graph, destination.point, max_distance_m=SNAP_MAX_M)
+    try:
+        current_context = context or PlanningContext(walk_graph, origin, config)
+    except (ValueError, TypeError):
+        outcome.notes.append("起点不是合法有限经纬度。下一步：检查经纬度顺序和范围。")
+        return outcome
+    if current_context.walk_graph is not walk_graph or current_context.origin != origin or current_context.config != config:
+        raise ValueError("规划上下文与数据、起点或配置不一致。下一步：为本次请求新建 PlanningContext。")
+    origin_node = current_context.origin_node
+    dest_node = current_context.snap(destination.point)
 
     if origin_node is None:
         outcome.notes.append(
@@ -299,36 +392,13 @@ def plan_routes(
         )
         return outcome
 
-    costs = _edge_costs(walk_graph, config)
-
-    def weight(u: str, v: str, _data: Dict[str, object]) -> float:
-        return costs.get(edge_key(u, v), 0.0)
-
-    try:
-        primary_path = nx.shortest_path(
-            walk_graph.graph, source=origin_node, target=dest_node, weight=weight
-        )
-    except (nx.NetworkXNoPath, nx.NodeNotFound):
+    candidate_paths = current_context.candidate_paths(dest_node)
+    if not candidate_paths:
         outcome.notes.append(
             f"未找到从起点到「{destination.name}」的可行步行路线。"
             "下一步：换一个目的地，或检查路网是否连通（python -m src.selfcheck --data）。"
         )
         return outcome
-
-    # 用 networkx 的简单路径生成器按成本升序取候选，避免自研 K 短路
-    candidate_paths: List[Tuple[str, ...]] = [tuple(primary_path)]
-    try:
-        generator = nx.shortest_simple_paths(
-            walk_graph.graph, origin_node, dest_node, weight=weight
-        )
-        for path in generator:
-            candidate = tuple(path)
-            if candidate not in candidate_paths:
-                candidate_paths.append(candidate)
-            if len(candidate_paths) >= MAX_CANDIDATES:
-                break
-    except (nx.NetworkXNoPath, nx.NodeNotFound):
-        pass
 
     evaluations = []
     for path in candidate_paths:

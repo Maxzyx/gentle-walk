@@ -258,3 +258,157 @@ def test_ui_main_prints_guidance_without_streamlit(
     assert "未安装 Streamlit" in out
     assert "requirements-optional.txt" in out
     assert "python -m src.cli" in out
+
+
+
+def _recommendation_state(config: AppConfig, pois=None, rest_points=()) -> ServiceState:
+    """构造带备选路径的合成路网，不依赖文件或在线地图服务。"""
+    from src.models import GraphNode, GraphEdge
+    from src.graph_builder import build_graph
+    nodes = [
+        GraphNode("a", 108.94, 34.26),
+        GraphNode("b", 108.941, 34.26),
+        GraphNode("c", 108.94, 34.261),
+        GraphNode("d", 108.941, 34.261),
+    ]
+    edges = [
+        GraphEdge("a", "b", 100),
+        GraphEdge("a", "c", 55),
+        GraphEdge("c", "b", 55),
+        GraphEdge("c", "d", 100),
+        GraphEdge("b", "d", 80),
+    ]
+    selected = pois if pois is not None else [
+        Poi("first", "菜店一", "greengrocer", 108.941, 34.26),
+        Poi("second", "菜店二", "greengrocer", 108.941, 34.261),
+    ]
+    dataset = Dataset(nodes=nodes, edges=edges, pois=list(selected), rest_points=list(rest_points))
+    return ServiceState(config, dataset, build_graph(dataset))
+
+
+def _exhaustive_best(state: ServiceState, origin):
+    """按原顺序完整评估所有目的地，作为优化算法的行为对照。"""
+    from src.router import plan_routes
+    outcomes = [plan_routes(state.walk_graph, origin, poi, state.config) for poi in state.dataset.pois]
+    available = [(index, outcome) for index, outcome in enumerate(outcomes) if outcome.ok]
+    return min(available, key=lambda pair: (pair[1].routes[0].cost, pair[0]))[1]
+
+
+def test_recommendation_matches_exhaustive_routes_and_risks(config: AppConfig) -> None:
+    from dataclasses import asdict
+    from src.models import RestPoint
+    state = _recommendation_state(config, rest_points=[
+        RestPoint("rest", "长椅", "bench", 108.94, 34.261),
+    ])
+    origin = (108.94, 34.26)
+    expected = _exhaustive_best(state, origin)
+    actual = plan(PlanRequest(origin=origin), state=state)
+    assert [asdict(route) for route in actual.routes] == [asdict(route) for route in expected.routes]
+
+
+def test_routing_context_shares_weights_and_paths(config: AppConfig, monkeypatch) -> None:
+    import src.router as router
+    pois = [
+        Poi("one", "同节点店一", "greengrocer", 108.941, 34.26),
+        Poi("two", "同节点店二", "greengrocer", 108.941, 34.26, has_ramp=True),
+    ]
+    state = _recommendation_state(config, pois=pois)
+    context = router.PlanningContext(state.walk_graph, (108.94, 34.26), config)
+    weights, generators, snaps = [], [], []
+    original_weights = router._edge_costs
+    original_generator = router.nx.shortest_simple_paths
+    original_snap = router.nearest_node
+    def weight_spy(*args):
+        weights.append(1)
+        return original_weights(*args)
+    def generator_spy(*args, **kwargs):
+        generators.append(1)
+        return original_generator(*args, **kwargs)
+    def snap_spy(*args, **kwargs):
+        snaps.append(1)
+        return original_snap(*args, **kwargs)
+    monkeypatch.setattr(router, "_edge_costs", weight_spy)
+    monkeypatch.setattr(router.nx, "shortest_simple_paths", generator_spy)
+    monkeypatch.setattr(router, "nearest_node", snap_spy)
+    one = router.plan_routes(state.walk_graph, context.origin, pois[0], config, context=context)
+    two = router.plan_routes(state.walk_graph, context.origin, pois[1], config, context=context)
+    assert len(weights) == len(generators) == len(snaps) == 1
+    assert one.routes[0].node_path == two.routes[0].node_path
+    assert one.routes[0].cost > two.routes[0].cost  # 入口条件不能随缓存混用。
+
+
+def test_alternative_rest_reward_can_win_recommendation(config: AppConfig) -> None:
+    from src.models import RestPoint
+    from src.router import plan_routes, PlanningContext
+    selected = dataclasses.replace(config, scoring=dataclasses.replace(
+        config.scoring, rest_buffer_m=1, fatigue_cost=0, ramp_bonus=0,
+        rest_reward_per_point=5, rest_reward_cap=5,
+    ))
+    state = _recommendation_state(selected, pois=[
+        Poi("plain", "普通入口店", "greengrocer", 108.941, 34.261),
+        Poi("reward", "有休息备选店", "greengrocer", 108.941, 34.26),
+    ], rest_points=[RestPoint("r", "备选路长椅", "bench", 108.94, 34.261)])
+    origin = (108.94, 34.26)
+    context = PlanningContext(state.walk_graph, origin, selected)
+    reward_routes = plan_routes(state.walk_graph, origin, state.dataset.pois[1], selected, context=context)
+    assert reward_routes.routes[0].node_path == ("a", "c", "b")
+    assert reward_routes.routes[0].cost == 0
+    actual = plan(PlanRequest(origin=origin), state=state)
+    expected = _exhaustive_best(state, origin)
+    assert actual.routes == expected.routes
+
+
+def test_equal_cost_preserves_original_poi_order(config: AppConfig, monkeypatch) -> None:
+    from src.router import PlanningContext
+    state = _recommendation_state(config, pois=[
+        Poi("first", "先列出的店", "greengrocer", 108.941, 34.26),
+        Poi("second", "后列出的店", "greengrocer", 108.941, 34.26),
+    ])
+    monkeypatch.setattr(PlanningContext, "cost_lower_bound", lambda self, poi: .1 if poi.id == "first" else 0.0)
+    result = plan(PlanRequest(origin=(108.94, 34.26)), state=state)
+    assert result.primary.destination.id == "first"
+
+
+@pytest.mark.parametrize("origin", [(float("nan"), 34), (float("inf"), 34), (108, 91), ("bad", 34), (108,)])
+def test_programmatic_invalid_origin_returns_guidance(config: AppConfig, origin, monkeypatch) -> None:
+    state = _recommendation_state(config)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("非法起点不应触发寻路")
+    monkeypatch.setattr(service, "plan_routes", forbidden)
+    result = plan(PlanRequest(origin=origin), state=state)
+    assert not result.routes
+    assert any("起点不是合法" in note and "下一步" in note for note in result.notes)
+    assert "数据来源声明" in "\n".join(describe_result(result))
+
+
+def test_unreachable_origin_does_not_enumerate_candidates(config: AppConfig, monkeypatch) -> None:
+    import src.router as router
+    state = _recommendation_state(config)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("远起点不应计算边权")
+    monkeypatch.setattr(router, "_edge_costs", forbidden)
+    result = plan(PlanRequest(origin=(109.5, 34.9)), state=state)
+    assert not result.routes
+    assert any("起点无法连接" in note for note in result.notes)
+
+
+def test_empty_online_result_falls_back_to_local_dataset(online_config: AppConfig, monkeypatch) -> None:
+    monkeypatch.setattr(keys, "resolve_key", lambda **kwargs: _fake_resolution(True))
+    monkeypatch.setattr("src.adapters.online.load_online_dataset", lambda config: Dataset())
+    state = prepare_state(config=online_config)
+    assert state.mode == "offline"
+    assert state.dataset.pois
+    assert any("没有可用目的地" in note for note in state.notes)
+
+
+def test_lower_bound_never_exceeds_full_route_cost(config: AppConfig) -> None:
+    from src.router import PlanningContext, plan_routes
+    state = _recommendation_state(config, pois=[
+        Poi("ramp", "坡道入口", "greengrocer", 108.94105, 34.26, has_ramp=True),
+        Poi("no_ramp", "无坡道入口", "greengrocer", 108.94105, 34.26, has_ramp=False),
+        Poi("same_node", "同节点入口", "greengrocer", 108.94001, 34.26, has_ramp=True),
+    ])
+    context = PlanningContext(state.walk_graph, (108.94, 34.26), config)
+    for poi in state.dataset.pois:
+        outcome = plan_routes(state.walk_graph, context.origin, poi, config, context=context)
+        assert context.cost_lower_bound(poi) <= outcome.routes[0].cost

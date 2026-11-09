@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -25,7 +26,7 @@ from .models import (
     Route,
     RouteResult,
 )
-from .router import plan_routes
+from .router import PlanningContext, PlanOutcome, SNAP_MAX_M, plan_routes
 
 Point = Tuple[float, float]
 
@@ -113,6 +114,8 @@ def _try_load_online(config: AppConfig) -> Tuple[Optional[Dataset], List[str]]:
         return None, ["在线高德适配器尚未启用，已使用离线演示数据。"]
     try:
         dataset = load_online_dataset(config)
+        if not dataset.pois:
+            raise ValueError("在线查询没有可用目的地，继续使用离线数据")
     except Exception as exc:  # noqa: BLE001 - 在线失败一律降级
         return None, [
             f"在线高德不可用（{exc}），已切换离线演示数据。",
@@ -202,11 +205,27 @@ def plan(
     """
     current = state or prepare_state(config=config)
     category = normalize_category(request.category)
-    origin = request.origin or current.config.area.center
+    origin = current.config.area.center
+    invalid_origin = False
+    if request.origin is not None:
+        try:
+            lon, lat = request.origin
+            candidate = (float(lon), float(lat))
+            if not (math.isfinite(candidate[0]) and math.isfinite(candidate[1])
+                    and -180 <= candidate[0] <= 180 and -90 <= candidate[1] <= 90):
+                raise ValueError("invalid coordinates")
+            origin = candidate
+        except (TypeError, ValueError, OverflowError):
+            invalid_origin = True
 
     result = RouteResult(origin=origin, category=category or request.category)
     result.mode = current.mode
     result.notes.extend(current.notes)
+
+    if invalid_origin:
+        result.notes.append("起点不是合法有限经纬度。下一步：输入经度 -180—180、纬度 -90—90 范围的数字。")
+        _attach_issues(result, current)
+        return result
 
     if category is None:
         result.notes.append(
@@ -235,28 +254,45 @@ def plan(
             return result
         pois = matched
 
-    best: Optional[Tuple[float, Poi, object]] = None
+    context = PlanningContext(current.walk_graph, origin, current.config)
+    if context.origin_node is None:
+        result.notes.append(
+            f"起点无法连接可用路网（为空或距节点超过 {SNAP_MAX_M:.0f} 米）。"
+            "下一步：换一个靠近路网的起点，或补充路网数据。"
+        )
+        _attach_issues(result, current)
+        return result
+
+    best: Optional[Tuple[float, int, Poi, PlanOutcome]] = None
     compared = 0
     unreachable: List[str] = []
     unreachable_count = 0
-    for poi in pois:
-        outcome = plan_routes(current.walk_graph, origin, poi, current.config)
-        if not outcome.ok:
-            # 在线模式下目的地可能成百上千，逐条输出会淹没结果，这里只留少量样例
+    candidates: List[Tuple[float, int, Poi]] = []
+    for index, poi in enumerate(pois):
+        lower_bound = context.cost_lower_bound(poi)
+        if not math.isfinite(lower_bound):
             unreachable_count += 1
             if len(unreachable) < 3:
                 unreachable.append(poi.name)
             continue
-        compared += 1
+        candidates.append((lower_bound, index, poi))
+    compared = len(candidates)
+    for lower_bound, index, poi in sorted(candidates, key=lambda item: (item[0], item[1])):
+        # 只跳过不可能胜出的目的地，评分相同仍按原始列表顺序决胜。
+        if best is not None and lower_bound > best[0] + 0.002:
+            continue
+        outcome = plan_routes(current.walk_graph, origin, poi, current.config, context=context)
+        if not outcome.ok:
+            continue
         primary_cost = outcome.routes[0].cost
-        if best is None or primary_cost < best[0]:
-            best = (primary_cost, poi, outcome)
+        if best is None or (primary_cost, index) < (best[0], best[1]):
+            best = (primary_cost, index, poi, outcome)
 
     unreachable_note = ""
     if unreachable_count:
         examples = "、".join(unreachable)
         unreachable_note = (
-            f"{unreachable_count} 个目的地超出路网吸附范围（示例：{examples}），已跳过。"
+            f"{unreachable_count} 个目的地无法连接可用路网（示例：{examples}），已跳过。"
             "下一步：补充该区域路网数据，或换一个更靠近路网的起点。"
         )
 
@@ -270,13 +306,13 @@ def plan(
         _attach_issues(result, current)
         return result
 
-    _, destination, outcome = best
-    result.routes = list(outcome.routes)  # type: ignore[union-attr]
-    result.risks = list(outcome.routes[0].risks)  # type: ignore[union-attr]
+    _, _, destination, outcome = best
+    result.routes = list(outcome.routes)
+    result.risks = list(outcome.routes[0].risks)
     # 吸附说明随后会用具体米数补充，这里先去重，避免两条相似提示同时出现
     result.notes.extend(
         note
-        for note in outcome.notes  # type: ignore[union-attr]
+        for note in outcome.notes
         if "起点已吸附到最近路网节点" not in note
     )
 
